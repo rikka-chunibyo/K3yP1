@@ -39,7 +39,7 @@ To do this first type ```sudo nano /etc/systemd/system/handlecad.service```. Now
 Description=Handle ctrl alt delete
 
 [Service]
-ExecStart=/bin/sh -c "sudo python /home/pi/K3yP1/cad.py"
+ExecStart=/bin/sh -c "sudo python /home/rikka/Pi-Keylogger/cad.py"
 
 [Install]
 WantedBy=multi-user.target
@@ -68,11 +68,11 @@ Now the ctrl+alt+delete proccess should be overwritten and should run our servie
 ### Setup continued
 Now you will want to download this repository to your computer/laptop.
 
-Now if you are not already logged into the Pi via SSH do so and run the command ```sudo mkdir /home/pi/K3yP1```. Now run ```cd /home/pi/KeyP1```. This will take you to the directory you have just created. Now run ```sudo mkdir log```. Which should create a directory for you to store the log files.
+Now if you are not already logged into the Pi via SSH do so and run the command ```sudo mkdir /home/rikka/Pi-Keylogger```. Now run ```cd /home/pi/KeyP1```. This will take you to the directory you have just created. Now run ```sudo mkdir log```. Which should create a directory for you to store the log files.
 
-Once this is all set up you will want to some how upload the two python files ```K3yP1.py, cad.py``` from this repository to the directory ```/home/pi/K3yP1``` a simple way to do this is to use ```scp```. From a seperate terminal that is not logged into the Pi type ```sudo scp (file to transfer) pi@(ip address of the pi or .local name):K3yP1``` without brackets. Ths will then prompt you for a password and then transfer the file. Do this for both the K3ypi.py file and cad.py. It is important that both files are in the directory ```/home/pi/K3yP1/```.
+Once this is all set up you will want to some how upload the two python files ```K3yP1.py, cad.py``` from this repository to the directory ```/home/rikka/Pi-Keylogger``` a simple way to do this is to use ```scp```. From a seperate terminal that is not logged into the Pi type ```sudo scp (file to transfer) pi@(ip address of the pi or .local name):K3yP1``` without brackets. Ths will then prompt you for a password and then transfer the file. Do this for both the K3ypi.py file and cad.py. It is important that both files are in the directory ```/home/rikka/Pi-Keylogger/```.
 
-Now we must enable the Raspberry Pi to automatically login and then run a file. Therefore run the command ```sudo nano /etc/profile``` and at the very end of the file add ```sudo python /home/pi/K3yP1/K3yP1.py```. This will automatically run our python file that captures keystrokes and logs them when the raspberry Pi logs in.
+Now we must enable the Raspberry Pi to automatically login and then run a file. Therefore run the command ```sudo nano /etc/profile``` and at the very end of the file add ```sudo python /home/rikka/Pi-Keylogger/K3yP1.py```. This will automatically run our python file that captures keystrokes and logs them when the raspberry Pi logs in.
 
 Now we must enable the Pi to automatically log in. [This](http://www.opentechguides.com/how-to/article/raspberry-pi/134/raspbian-jessie-autologin.html) tutorial demonstartes how to do this aswell as modifying ```/etc/profile``` to run a command/file of our choice. Once you have done this the Raspberry Pi setup is completed.
 

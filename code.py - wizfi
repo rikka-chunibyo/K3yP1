@@ -1,30 +1,41 @@
+import time
 import board
 import busio
 import digitalio
 import usb_hid
-import wiznet5k
-from wiznet5k import server
+from adafruit_wizfiatcontrol import adafruit_wizfiatcontrol
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.keycode import Keycode
 
-# Set up SPI for WizFi360
-spi = busio.SPI(board.GP10, board.GP11, board.GP12)  # Adjust pins as needed
-cs = digitalio.DigitalInOut(board.GP13)
-reset = digitalio.DigitalInOut(board.GP14)
+# Wi-Fi Credentials
+SSID = "PicoHID_Network"  # Change this
+PASSWORD = "password123"  # Change this
 
-# Initialize WizFi360
-eth = wiznet5k.WIZNET5K(spi, cs, reset)
+# WizFi360 Configuration
+RX = board.GP5
+TX = board.GP4
+resetpin = digitalio.DigitalInOut(board.GP20)
+rtspin = False
+uart = busio.UART(TX, RX, baudrate=115200, receiver_buffer_size=2048)
 
-# Configure WizFi360 as an Access Point
-eth.start_ap("PicoHID_Network", "testest")  # Replace with desired SSID and password
+# Debug Flag
+debugflag = False
 
-# Start a web server on port 80
-web_server = server.WIZServer(80)
+print("Initializing WizFi360...")
+wizfi = adafruit_wizfiatcontrol.WizFi_ATcontrol(uart, 115200, reset_pin=resetpin, rts_pin=rtspin, debug=debugflag)
+print("WizFi360 Firmware Version:", wizfi.get_version())
 
-# Initialize HID keyboard
+# Reset the module
+wizfi.hard_reset()
+
+# Start Access Point
+print("Starting AP mode...")
+wizfi.start_ap(SSID, PASSWORD, 3)  # Channel 3
+
+# Initialize HID Keyboard
 keyboard = Keyboard(usb_hid.devices)
 
-# Key mapping
+# Key Mapping
 key_map = {
     10: Keycode.ENTER,
     13: Keycode.ENTER,
@@ -34,24 +45,32 @@ key_map = {
     32: Keycode.SPACE,
 }
 
+# Start TCP Server
+print("Starting TCP server on port 80...")
+wizfi.start_server(port=80)
+
 while True:
-    client = web_server.accept()
-    if client:
-        request = client.recv(1024).decode()
-        print("Received request:", request)
-        
-        if "key?code=" in request:
-            try:
-                keycode = int(request.split("key?code=")[1].split()[0])
-                if keycode in key_map:
-                    keyboard.send(key_map[keycode])
-                    response = "Key Sent"
-                else:
-                    response = "Invalid Keycode"
-            except Exception as e:
-                response = f"Error: {str(e)}"
-        else:
-            response = "Invalid Request"
-        
-        client.send("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n" + response)
-        client.close()
+    try:
+        client = wizfi.client_available()
+        if client:
+            request = client.recv(1024).decode()
+            print("Received request:", request)
+            
+            if "key?code=" in request:
+                try:
+                    keycode = int(request.split("key?code=")[1].split()[0])
+                    if keycode in key_map:
+                        keyboard.send(key_map[keycode])
+                        response = "Key Sent"
+                    else:
+                        response = "Invalid Keycode"
+                except Exception as e:
+                    response = f"Error: {str(e)}"
+            else:
+                response = "Invalid Request"
+            
+            client.send("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n" + response)
+            client.close()
+    except Exception as e:
+        print("Error:", e)
+        time.sleep(1)

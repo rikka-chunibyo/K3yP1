@@ -12,11 +12,12 @@ keyboard = Keyboard(usb_hid.devices)
 
 # Mapping of received character codes to HID keycodes
 key_map = {
-    13: Keycode.ENTER,      # Enter key
-    127: Keycode.BACKSPACE, # Backspace key
-    9: Keycode.TAB,         # Tab key
-    27: "ESC",              # Escape sequences (handled separately)
-    32: Keycode.SPACE,      # Space key
+    10: Keycode.ENTER,      # LF (Line Feed) as Enter
+    13: Keycode.ENTER,      # Just in case CR is ever used
+    127: Keycode.BACKSPACE,
+    9: Keycode.TAB,
+    27: "ESC",
+    32: Keycode.SPACE,
 }
 
 arrow_keys = {

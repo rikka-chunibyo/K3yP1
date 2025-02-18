@@ -63,10 +63,11 @@ keyboard = Keyboard(usb_hid.devices)
 key_map = {
     10: Keycode.ENTER,      # LF (Line Feed) as Enter
     13: Keycode.ENTER,      # Just in case CR is ever used
-    127: Keycode.BACKSPACE,
-    9: Keycode.TAB,
-    27: "ESC",
-    32: Keycode.SPACE,
+    127: Keycode.BACKSPACE, # Backspace
+    9: Keycode.TAB,         # Tab
+    27: "ESC",               # ESC
+    32: Keycode.SPACE,      # Space
+    126: Keycode.DELETE,     # Delete key
 }
 
 arrow_keys = {
@@ -74,6 +75,21 @@ arrow_keys = {
     217: Keycode.DOWN_ARROW,  # 217 for Down Arrow
     216: Keycode.LEFT_ARROW,  # 216 for Left Arrow
     215: Keycode.RIGHT_ARROW, # 215 for Right Arrow
+}
+
+function_keys = { # disabled, for some reason it sends 0 then the function keycode i.e. hitting F1 sends 0 then 65
+    112: Keycode.F1,   # F1
+    113: Keycode.F2,   # F2
+    114: Keycode.F3,   # F3
+    115: Keycode.F4,   # F4
+    116: Keycode.F5,   # F5
+    117: Keycode.F6,   # F6
+    118: Keycode.F7,   # F7
+    119: Keycode.F8,   # F8
+    120: Keycode.F9,   # F9
+    121: Keycode.F10,  # F10
+    122: Keycode.F11,  # F11
+    123: Keycode.F12,  # F12
 }
 
 esc_sequence = []  # Buffer for handling multi-byte sequences (e.g., arrow keys)
@@ -92,14 +108,21 @@ while True:
                     keycode = int(parts[1].strip())  # Extract keycode
                     print(f"Keycode received: {keycode}")
 
-                    # Directly map the keycode to arrow keys
+                    # Handle Arrow keys directly
                     if keycode in arrow_keys:
                         print(f"Sending Arrow Key: {arrow_keys[keycode]}")  # Debugging
                         keyboard.press(arrow_keys[keycode])  # Press the arrow key
                         time.sleep(0.05)  # Wait a bit before releasing
                         keyboard.release_all()  # Release all keys to finalize the action
 
-                    # Handle predefined mappings (Enter, Backspace, Tab, Space, etc.)
+                    # # Handle Function keys
+                    # elif keycode in function_keys:
+                    #     print(f"Sending Function Key: {function_keys[keycode]}")  # Debugging
+                    #     keyboard.press(function_keys[keycode])  # Press the function key
+                    #     time.sleep(0.05)
+                    #     keyboard.release_all()
+
+                    # Handle predefined mappings (Enter, Backspace, Tab, Space, Delete, etc.)
                     elif keycode in key_map:
                         keyboard.send(key_map[keycode])
 
@@ -119,7 +142,7 @@ while True:
                         elif 'A' <= char <= 'Z':  # Uppercase letters (requires Shift)
                             keyboard.press(Keycode.SHIFT, getattr(Keycode, char))
                             keyboard.release_all()
-                        elif keycode in key_map:  # Symbols like Space
+                        elif keycode in key_map:  # Symbols like Space, Delete, etc.
                             keyboard.send(key_map[keycode])
                         else:
                             print(f"Unhandled key: {keycode}")  # Debugging output

@@ -7,9 +7,9 @@ from adafruit_wizfiatcontrol import adafruit_wizfiatcontrol
 # Wi-Fi AP Configuration
 SSID = "PicoHID_Network"
 PASSWORD = "testest"
-CHANNEL = 3  # Wi-Fi Channel (1-11)
-SECURITY = 3  # 0: Open, 1: WEP, 2: WPA, 3: WPA2-Personal
-HIDDEN = 1  # 1 = Hidden SSID, 0 = Visible
+CHANNEL = 3
+SECURITY = 3  # WPA2-Personal
+HIDDEN = 0  # 1 = Hidden, 0 = Visible
 
 # WizFi360 Pins
 RX = board.GP5
@@ -28,22 +28,44 @@ wizfi = adafruit_wizfiatcontrol.WizFi_ATcontrol(
 print("Resetting WizFi360...")
 wizfi.hard_reset()
 
-# Function to send AT commands manually via UART
+# Function to send AT commands manually
 def send_at_command(command, delay=1):
-    """ Sends an AT command via UART and waits for a response """
     print(f"Sending: {command}")
-    uart.write((command + "\r\n").encode())  # Send command
-    time.sleep(delay)  # Wait for WizFi360 to process
+    uart.write((command + "\r\n").encode())
+    time.sleep(delay)
 
 # Set WizFi360 to Access Point Mode
-send_at_command("AT+CWMODE=2", delay=2)  # AP Mode
+send_at_command("AT+CWMODE=2", delay=2)
 
-# Start Hidden Access Point
+# Start AP
 ap_command = f'AT+CWSAP="{SSID}","{PASSWORD}",{CHANNEL},{SECURITY},4,{HIDDEN}'
 send_at_command(ap_command, delay=3)
 
-print(f"Hidden AP '{SSID}' should now be active!")
+# Start a simple HTTP server on port 80
+send_at_command('AT+CIPMUX=1', delay=2)  # Enable multiple connections
+send_at_command('AT+CIPSERVER=1,80', delay=2)  # Start server on port 80
 
-# Keep running to prevent script exit
+print(f"HTTP Server running at http://192.168.4.1")
+
+# Loop to read HTTP requests
 while True:
-    time.sleep(10)
+    send_at_command('AT+CIPRECVDATA?', delay=1)  # Check for incoming data
+    if uart.in_waiting:
+        response = uart.read(uart.in_waiting).decode("utf-8")
+        print(f"Received: {response}")
+
+        # Parse HTTP request
+        if "+IPD" in response:
+            try:
+                request = response.split("GET ")[1].split(" ")[0]  # Extract GET request
+                key = request.split("=")[1]  # Extract keycode
+                print(f"Keycode received: {key}")
+
+                # Send HTTP response
+                send_at_command('AT+CIPSEND=0,17', delay=1)
+                send_at_command('HTTP/1.1 200 OK\r\n\r\nKey Sent!', delay=1)
+                send_at_command('AT+CIPCLOSE=0', delay=1)
+            except:
+                pass  # Ignore errors
+
+    time.sleep(0.1)

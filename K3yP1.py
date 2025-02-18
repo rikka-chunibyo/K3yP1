@@ -40,7 +40,7 @@ def arrow(char):
     else:
         return 0
 
-ser = serial.Serial("/dev/ttyS0", 9600, timeout=2)
+ser = serial.Serial("/dev/serial0", 9600, timeout=2, rtscts=False)
 date = time.strftime("%c").replace(" ", "-")
 
 print(date)

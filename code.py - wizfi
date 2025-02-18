@@ -2,6 +2,9 @@ import time
 import board
 import busio
 import digitalio
+import usb_hid
+from adafruit_hid.keyboard import Keyboard
+from adafruit_hid.keycode import Keycode
 from adafruit_wizfiatcontrol import adafruit_wizfiatcontrol
 
 # Wi-Fi AP Configuration
@@ -41,25 +44,66 @@ send_at_command("AT+CWMODE=2", delay=2)
 ap_command = f'AT+CWSAP="{SSID}","{PASSWORD}",{CHANNEL},{SECURITY},4,{HIDDEN}'
 send_at_command(ap_command, delay=3)
 
-# Start a simple HTTP server on port 80
-send_at_command('AT+CIPMUX=1', delay=2)  # Enable multiple connections
-send_at_command('AT+CIPSERVER=1,80', delay=2)  # Start server on port 80
+# Enable multiple connections
+send_at_command('AT+CIPMUX=1', delay=2)  # Allow multiple connections
+
+# Start HTTP server on port 80
+send_at_command('AT+CIPSERVER=1,80', delay=2)
 
 print(f"HTTP Server running at http://192.168.4.1")
 
-# Loop to read HTTP requests
+# Set up HID keyboard
+keyboard = Keyboard(usb_hid.devices)
+
+# Mapping of received character codes to HID keycodes
+key_map = {
+    10: Keycode.ENTER,      # LF (Line Feed) as Enter
+    13: Keycode.ENTER,      # Just in case CR is ever used
+    127: Keycode.BACKSPACE,
+    9: Keycode.TAB,
+    27: "ESC",
+    32: Keycode.SPACE,
+}
+
+arrow_keys = {
+    218: Keycode.UP_ARROW,
+    217: Keycode.DOWN_ARROW,
+    216: Keycode.LEFT_ARROW,
+    215: Keycode.RIGHT_ARROW,
+}
+
 while True:
-    send_at_command('AT+CIPRECVDATA?', delay=1)  # Check for incoming data
     if uart.in_waiting:
         response = uart.read(uart.in_waiting).decode("utf-8")
         print(f"Received: {response}")
 
-        # Parse HTTP request
         if "+IPD" in response:
             try:
                 request = response.split("GET ")[1].split(" ")[0]  # Extract GET request
-                key = request.split("=")[1]  # Extract keycode
+                key = int(request.split("=")[1])  # Extract keycode as integer
                 print(f"Keycode received: {key}")
+
+                # Send keypress based on received keycode
+                if key in key_map:
+                    keyboard.send(key_map[key])
+                elif key in arrow_keys:
+                    keyboard.send(arrow_keys[key])
+                elif 1 <= key <= 26:  # Handle Ctrl+[A-Z]
+                    ctrl_char = chr(key + 64)  # Convert to uppercase letter
+                    if hasattr(Keycode, ctrl_char):
+                        keyboard.press(Keycode.CONTROL, getattr(Keycode, ctrl_char))
+                        keyboard.release_all()
+                elif 32 <= key <= 126:  # Printable characters
+                    char = chr(key)
+                    if 'a' <= char <= 'z':
+                        keyboard.send(getattr(Keycode, char.upper()))
+                    elif 'A' <= char <= 'Z':
+                        keyboard.press(Keycode.SHIFT, getattr(Keycode, char))
+                        keyboard.release_all()
+                    elif '0' <= char <= '9':
+                        keyboard.send(getattr(Keycode, char))
+                    else:
+                        print(f"Unhandled key: {key}")
 
                 # Send HTTP response
                 send_at_command('AT+CIPSEND=0,17', delay=1)

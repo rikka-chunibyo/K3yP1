@@ -70,10 +70,10 @@ key_map = {
 }
 
 arrow_keys = {
-    218: Keycode.UP_ARROW,
-    217: Keycode.DOWN_ARROW,
-    216: Keycode.LEFT_ARROW,
-    215: Keycode.RIGHT_ARROW,
+    218: Keycode.UP_ARROW,    # 218 for Up Arrow
+    217: Keycode.DOWN_ARROW,  # 217 for Down Arrow
+    216: Keycode.LEFT_ARROW,  # 216 for Left Arrow
+    215: Keycode.RIGHT_ARROW, # 215 for Right Arrow
 }
 
 esc_sequence = []  # Buffer for handling multi-byte sequences (e.g., arrow keys)
@@ -92,21 +92,15 @@ while True:
                     keycode = int(parts[1].strip())  # Extract keycode
                     print(f"Keycode received: {keycode}")
 
-                    # Handle Escape sequences (Arrow keys, function keys)
-                    if esc_sequence or keycode == 27:
-                        esc_sequence.append(keycode)
-
-                        if len(esc_sequence) == 3:  # Expecting ESC + '[' + 'A' format
-                            if esc_sequence[1] == 91:  # '[' character (start of arrow sequence)
-                                arrow_char = esc_sequence[2]
-                                if arrow_char in arrow_keys:
-                                    keyboard.send(arrow_keys[arrow_char])
-
-                            esc_sequence = []  # Reset sequence after processing
-                        continue
+                    # Directly map the keycode to arrow keys
+                    if keycode in arrow_keys:
+                        print(f"Sending Arrow Key: {arrow_keys[keycode]}")  # Debugging
+                        keyboard.press(arrow_keys[keycode])  # Press the arrow key
+                        time.sleep(0.05)  # Wait a bit before releasing
+                        keyboard.release_all()  # Release all keys to finalize the action
 
                     # Handle predefined mappings (Enter, Backspace, Tab, Space, etc.)
-                    if keycode in key_map:
+                    elif keycode in key_map:
                         keyboard.send(key_map[keycode])
 
                     # Handle Ctrl + [A-Z] (ASCII 1-26)
@@ -125,8 +119,6 @@ while True:
                         elif 'A' <= char <= 'Z':  # Uppercase letters (requires Shift)
                             keyboard.press(Keycode.SHIFT, getattr(Keycode, char))
                             keyboard.release_all()
-                        elif '0' <= char <= '9':  # Numbers
-                            keyboard.send(getattr(Keycode, char))
                         elif keycode in key_map:  # Symbols like Space
                             keyboard.send(key_map[keycode])
                         else:

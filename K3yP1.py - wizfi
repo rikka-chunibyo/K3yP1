@@ -1,78 +1,51 @@
 import getch
-import signal
+import socket
 import time
-import requests
 
-PICO_IP = "192.168.36.30"  # Change this to match your Pico's IP
+PICO_IP = "192.168.36.30"  # Change if needed
+PORT = 12345
+sock = None  # Declare socket globally
 
-def handler(signum, frame):
-    log(chr(26), date)
+def connect():
+    """Try to establish a TCP connection to the Pico."""
+    global sock
+    while True:
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2)  # Prevents long blocking
+            sock.connect((PICO_IP, PORT))
+            print(f"Connected to {PICO_IP}:{PORT}")
+            return
+        except Exception as e:
+            print(f"Failed to connect: {e}, retrying in 2s...")
+            time.sleep(2)
 
-def log(char, date):
-    keycode = ord(char)
-    print(f"Sending keycode {keycode} to {PICO_IP}")
+connect()  # Establish initial connection
 
+def send_key(keycode):
+    """Send a keycode to the Pico via TCP."""
+    global sock
     try:
-        response = requests.get(f"http://{PICO_IP}/?key={keycode}")
-        print(f"Response: {response.status_code} - {response.text}")
-    except requests.RequestException as e:
-        print(f"Error sending request: {e}")
+        sock.sendall(f"{keycode}\n".encode())  # Send keycode as raw data
+    except Exception as e:
+        print(f"Error sending keycode {keycode}: {e}")
+        sock.close()
+        sock = None
+        connect()  # Reconnect if broken
 
-    if keycode == 5:
-        exit()
-    elif keycode == 13:
-        char = "\n"
-    elif keycode == 127:
-        char = " Backspace "
-    elif keycode == 218:
-        char = " UpArrow "
-    elif keycode == 217:
-        char = " DownArrow "
-    elif keycode == 216:
-        char = " LeftArrow "
-    elif keycode == 215:
-        char = " RightArrow "
-
-    with open(f"/home/rikka/Pi-Keylogger/log/{date}.txt", "a+") as f:
-        f.write(char)
-
-def arrow(char):
-    if ord(char) == 65:
-        return 218  # Up Arrow
-    elif ord(char) == 67:
-        return 215  # Right Arrow
-    elif ord(char) == 68:
-        return 216  # Left Arrow
-    elif ord(char) == 66:
-        return 217  # Down Arrow
-    else:
-        return 0
-
-date = time.strftime("%c").replace(" ", "-")
-print(date)
-
-with open(f"/home/rikka/Pi-Keylogger/log/{date}.txt", "w+") as f:
-    f.write(f"Started at {date}\n")
-
-signal.signal(signal.SIGTSTP, handler)
+print("Keylogger started!")
 
 while True:
     try:
-        try:
-            char = getch.getch()
-            if ord(char) == 27:  # Escape sequence (arrow keys, etc.)
-                _char = getch.getch()
-                if ord(_char) == 91:  # Arrow key indicator
-                    char = chr(arrow(getch.getch()))
-                    log(char, date)
-                else:
-                    log(char, date)
-                    log(_char, date)
-            else:
-                log(char, date)
-        except KeyboardInterrupt:
-            pass
+        char = getch.getch()
+        keycode = ord(char)
+        print(f"Sending keycode {keycode} to {PICO_IP}:{PORT}")
+        send_key(keycode)
     except KeyboardInterrupt:
-        log(chr(3), date)
-    except OverflowError:
-        pass
+        print("Exiting...")
+        break
+    except Exception as e:
+        print(f"Error: {e}")
+        time.sleep(0.1)
+
+sock.close()

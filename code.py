@@ -12,10 +12,11 @@ keyboard = Keyboard(usb_hid.devices)
 
 # Mapping of received character codes to HID keycodes
 key_map = {
-    13: Keycode.ENTER,
-    127: Keycode.BACKSPACE,
-    9: Keycode.TAB,
-    27: "ESC",  # Escape sequences, needs handling for multi-byte keys
+    13: Keycode.ENTER,      # Enter key
+    127: Keycode.BACKSPACE, # Backspace key
+    9: Keycode.TAB,         # Tab key
+    27: "ESC",              # Escape sequences (handled separately)
+    32: Keycode.SPACE,      # Space key
 }
 
 arrow_keys = {
@@ -25,14 +26,15 @@ arrow_keys = {
     215: Keycode.RIGHT_ARROW,
 }
 
-# Read buffer for handling multi-byte sequences (e.g., ESC + '[' + 'A' for Up Arrow)
-esc_sequence = []
+esc_sequence = []  # Buffer for handling multi-byte sequences (e.g., arrow keys)
 
 while True:
     if uart.in_waiting:
         byte_read = uart.read(1)
         if byte_read:
             char_code = ord(byte_read)
+
+            print(f"Received: {char_code}")  # Debugging output
 
             # Handle Escape sequences (Arrow keys, function keys)
             if esc_sequence or char_code == 27:
@@ -47,19 +49,29 @@ while True:
                     esc_sequence = []  # Reset sequence after processing
                 continue
 
-            # Handle predefined mappings
+            # Handle predefined mappings (Enter, Backspace, Tab, Space, etc.)
             if char_code in key_map:
                 keyboard.send(key_map[char_code])
 
+            # Handle Ctrl + [A-Z] (ASCII 1-26)
+            elif 1 <= char_code <= 26:
+                ctrl_char = chr(char_code + 64)  # Convert to uppercase letter
+                if hasattr(Keycode, ctrl_char):
+                    keyboard.press(Keycode.CONTROL, getattr(Keycode, ctrl_char))
+                    keyboard.release_all()
+
             # Handle normal printable characters
-            elif 32 <= char_code <= 126:  # Standard ASCII printable characters
+            elif 32 <= char_code <= 126:
                 char = chr(char_code)
+
                 if 'a' <= char <= 'z':  # Lowercase letters
                     keyboard.send(getattr(Keycode, char.upper()))
-                elif 'A' <= char <= 'Z':  # Uppercase letters (send Shift)
+                elif 'A' <= char <= 'Z':  # Uppercase letters (requires Shift)
                     keyboard.press(Keycode.SHIFT, getattr(Keycode, char))
                     keyboard.release_all()
                 elif '0' <= char <= '9':  # Numbers
                     keyboard.send(getattr(Keycode, char))
+                elif char_code in key_map:  # Symbols like Space
+                    keyboard.send(key_map[char_code])
                 else:
-                    pass  # Ignore unmapped characters
+                    print(f"Unhandled key: {char_code}")  # Debugging output

@@ -7,9 +7,14 @@ from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.keycode import Keycode
 from adafruit_wizfiatcontrol import adafruit_wizfiatcontrol
 
+### SETTINGS
+
 # Wi-Fi Credentials
 SSID = "PicoHID_Network"
 PASSWORD = "testestest"
+
+# Baud Rate
+BAUD_RATE = 921600
 
 # WizFi360 Pins
 RX = board.GP5
@@ -18,11 +23,11 @@ resetpin = digitalio.DigitalInOut(board.GP20)
 rtspin = False
 
 # Setup UART for WizFi360
-uart = busio.UART(TX, RX, baudrate=115200, receiver_buffer_size=2048)
+uart = busio.UART(TX, RX, baudrate=BAUD_RATE, receiver_buffer_size=2048)
 
 print("Initializing WizFi360...")
 wizfi = adafruit_wizfiatcontrol.WizFi_ATcontrol(
-    uart, 115200, reset_pin=resetpin, rts_pin=rtspin, debug=True
+    uart, BAUD_RATE, reset_pin=resetpin, rts_pin=rtspin, debug=True
 )
 
 print("Resetting WizFi360...")

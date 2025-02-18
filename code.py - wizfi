@@ -33,33 +33,31 @@ time.sleep(2)
 wizfi.mode = 1
 
 # Connect to Wi-Fi
-print(f"Connecting to {SSID} with password {PASSWORD}...")
+print(f"Connecting to {SSID}...")
 try:
-    join_cmd = f'AT+CWJAP="{SSID}","{PASSWORD}"'
-    response = wizfi.at_response(join_cmd, timeout=10)
-    print(f"Join response: {response}")
-except TypeError as e:
-    print(f"Error during connection: {e}") 
+    wizfi.join_AP(SSID, PASSWORD)
+    print("Connected to Wi-Fi!")
+except Exception as e:
+    print(f"Wi-Fi connection failed: {e}")
 
 # Get and print IP Address
 ip = wizfi.local_ip
 print(f"Connected! IP Address: {ip}")
 
-# Start HTTP server
-print("Enabling multiple connections...")
+# Enable multiple connections
 wizfi.at_response("AT+CIPMUX=1", timeout=5)
 
-print("Starting TCP server on port 80...")
-response = wizfi.at_response("AT+CIPSERVER=1,80", timeout=5)
-print(f"Server response: {response}")
+# Start TCP server on port 12345
+print("Starting TCP server on port 12345...")
+wizfi.at_response("AT+CIPSERVER=1,12345", timeout=5)
 
 # Set up HID keyboard
 keyboard = Keyboard(usb_hid.devices)
 
 # Mapping of received character codes to HID keycodes
 key_map = {
-    10: Keycode.ENTER,
-    13: Keycode.ENTER,
+    10: Keycode.ENTER,      # LF (Line Feed) as Enter
+    13: Keycode.ENTER,      # Just in case CR is ever used
     127: Keycode.BACKSPACE,
     9: Keycode.TAB,
     27: "ESC",
@@ -73,43 +71,63 @@ arrow_keys = {
     215: Keycode.RIGHT_ARROW,
 }
 
+esc_sequence = []  # Buffer for handling multi-byte sequences (e.g., arrow keys)
+
+print("Waiting for keycodes...")
+
 while True:
     if uart.in_waiting:
-        response = uart.read(uart.in_waiting).decode("utf-8")
-        print(f"Received: {response}")
+        data = uart.read(uart.in_waiting).decode("utf-8")
+        print(f"Received raw data: {data}")
 
-        if "+IPD" in response:
+        if "+IPD" in data:
             try:
-                request = response.split("GET ")[1].split(" ")[0]  # Extract GET request
-                key = int(request.split("=")[1])  # Extract keycode as integer
-                print(f"Keycode received: {key}")
+                parts = data.split(":")
+                if len(parts) > 1:
+                    keycode = int(parts[1].strip())  # Extract keycode
+                    print(f"Keycode received: {keycode}")
 
-                # Send keypress based on received keycode
-                if key in key_map:
-                    keyboard.send(key_map[key])
-                elif key in arrow_keys:
-                    keyboard.send(arrow_keys[key])
-                elif 1 <= key <= 26:  # Handle Ctrl+[A-Z]
-                    ctrl_char = chr(key + 64)
-                    if hasattr(Keycode, ctrl_char):
-                        keyboard.press(Keycode.CONTROL, getattr(Keycode, ctrl_char))
-                        keyboard.release_all()
-                elif 32 <= key <= 126:  # Printable characters
-                    char = chr(key)
-                    if 'a' <= char <= 'z':
-                        keyboard.send(getattr(Keycode, char.upper()))
-                    elif 'A' <= char <= 'Z':
-                        keyboard.press(Keycode.SHIFT, getattr(Keycode, char))
-                        keyboard.release_all()
-                    elif '0' <= char <= '9':
-                        keyboard.send(getattr(Keycode, char))
-                    else:
-                        print(f"Unhandled key: {key}")
+                    # Handle Escape sequences (Arrow keys, function keys)
+                    if esc_sequence or keycode == 27:
+                        esc_sequence.append(keycode)
 
-                # Send HTTP response
-                wizfi.socket_send(0, "HTTP/1.1 200 OK\r\n\r\nKey Sent!")
-                wizfi.socket_close(0)
-            except:
-                pass  # Ignore errors
+                        if len(esc_sequence) == 3:  # Expecting ESC + '[' + 'A' format
+                            if esc_sequence[1] == 91:  # '[' character (start of arrow sequence)
+                                arrow_char = esc_sequence[2]
+                                if arrow_char in arrow_keys:
+                                    keyboard.send(arrow_keys[arrow_char])
 
-    time.sleep(0.1)
+                            esc_sequence = []  # Reset sequence after processing
+                        continue
+
+                    # Handle predefined mappings (Enter, Backspace, Tab, Space, etc.)
+                    if keycode in key_map:
+                        keyboard.send(key_map[keycode])
+
+                    # Handle Ctrl + [A-Z] (ASCII 1-26)
+                    elif 1 <= keycode <= 26:
+                        ctrl_char = chr(keycode + 64)  # Convert to uppercase letter
+                        if hasattr(Keycode, ctrl_char):
+                            keyboard.press(Keycode.CONTROL, getattr(Keycode, ctrl_char))
+                            keyboard.release_all()
+
+                    # Handle normal printable characters
+                    elif 32 <= keycode <= 126:
+                        char = chr(keycode)
+
+                        if 'a' <= char <= 'z':  # Lowercase letters
+                            keyboard.send(getattr(Keycode, char.upper()))
+                        elif 'A' <= char <= 'Z':  # Uppercase letters (requires Shift)
+                            keyboard.press(Keycode.SHIFT, getattr(Keycode, char))
+                            keyboard.release_all()
+                        elif '0' <= char <= '9':  # Numbers
+                            keyboard.send(getattr(Keycode, char))
+                        elif keycode in key_map:  # Symbols like Space
+                            keyboard.send(key_map[keycode])
+                        else:
+                            print(f"Unhandled key: {keycode}")  # Debugging output
+
+            except ValueError:
+                pass  # Ignore invalid data
+
+    time.sleep(0.01)  # Prevent high CPU usage

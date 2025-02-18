@@ -7,12 +7,9 @@ from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.keycode import Keycode
 from adafruit_wizfiatcontrol import adafruit_wizfiatcontrol
 
-# Wi-Fi AP Configuration
+# Wi-Fi Credentials
 SSID = "PicoHID_Network"
-PASSWORD = "testest"
-CHANNEL = 3
-SECURITY = 3  # WPA2-Personal
-HIDDEN = 0  # 1 = Hidden, 0 = Visible
+PASSWORD = "testestest"
 
 # WizFi360 Pins
 RX = board.GP5
@@ -30,35 +27,39 @@ wizfi = adafruit_wizfiatcontrol.WizFi_ATcontrol(
 
 print("Resetting WizFi360...")
 wizfi.hard_reset()
+time.sleep(2)
 
-# Function to send AT commands manually
-def send_at_command(command, delay=1):
-    print(f"Sending: {command}")
-    uart.write((command + "\r\n").encode())
-    time.sleep(delay)
+# Set WizFi360 to Station mode
+wizfi.mode = 1
 
-# Set WizFi360 to Access Point Mode
-send_at_command("AT+CWMODE=2", delay=2)
+# Connect to Wi-Fi
+print(f"Connecting to {SSID} with password {PASSWORD}...")
+try:
+    join_cmd = f'AT+CWJAP="{SSID}","{PASSWORD}"'
+    response = wizfi.at_response(join_cmd, timeout=10)
+    print(f"Join response: {response}")
+except TypeError as e:
+    print(f"Error during connection: {e}") 
 
-# Start AP
-ap_command = f'AT+CWSAP="{SSID}","{PASSWORD}",{CHANNEL},{SECURITY},4,{HIDDEN}'
-send_at_command(ap_command, delay=3)
+# Get and print IP Address
+ip = wizfi.local_ip
+print(f"Connected! IP Address: {ip}")
 
-# Enable multiple connections
-send_at_command('AT+CIPMUX=1', delay=2)  # Allow multiple connections
+# Start HTTP server
+print("Enabling multiple connections...")
+wizfi.at_response("AT+CIPMUX=1", timeout=5)
 
-# Start HTTP server on port 80
-send_at_command('AT+CIPSERVER=1,80', delay=2)
-
-print(f"HTTP Server running at http://192.168.4.1")
+print("Starting TCP server on port 80...")
+response = wizfi.at_response("AT+CIPSERVER=1,80", timeout=5)
+print(f"Server response: {response}")
 
 # Set up HID keyboard
 keyboard = Keyboard(usb_hid.devices)
 
 # Mapping of received character codes to HID keycodes
 key_map = {
-    10: Keycode.ENTER,      # LF (Line Feed) as Enter
-    13: Keycode.ENTER,      # Just in case CR is ever used
+    10: Keycode.ENTER,
+    13: Keycode.ENTER,
     127: Keycode.BACKSPACE,
     9: Keycode.TAB,
     27: "ESC",
@@ -89,7 +90,7 @@ while True:
                 elif key in arrow_keys:
                     keyboard.send(arrow_keys[key])
                 elif 1 <= key <= 26:  # Handle Ctrl+[A-Z]
-                    ctrl_char = chr(key + 64)  # Convert to uppercase letter
+                    ctrl_char = chr(key + 64)
                     if hasattr(Keycode, ctrl_char):
                         keyboard.press(Keycode.CONTROL, getattr(Keycode, ctrl_char))
                         keyboard.release_all()
@@ -106,9 +107,8 @@ while True:
                         print(f"Unhandled key: {key}")
 
                 # Send HTTP response
-                send_at_command('AT+CIPSEND=0,17', delay=1)
-                send_at_command('HTTP/1.1 200 OK\r\n\r\nKey Sent!', delay=1)
-                send_at_command('AT+CIPCLOSE=0', delay=1)
+                wizfi.socket_send(0, "HTTP/1.1 200 OK\r\n\r\nKey Sent!")
+                wizfi.socket_close(0)
             except:
                 pass  # Ignore errors
 

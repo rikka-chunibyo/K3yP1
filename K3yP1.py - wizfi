@@ -8,39 +8,38 @@ os.system("stty -ixon")  # Disable Ctrl+S flow control
 
 def log(char, date):
     """Log keypresses to a file and send them over TCP."""
-    print(f"Logging and sending keycode {ord(char)}")
+    keycode = ord(char)
+    print(f"Logging and sending keycode {keycode}")
     send_key(char)
 
-    if ord(char) == 5:
+    if keycode == 5:
         exit()
-    elif ord(char) == 13:
-        char = "\n"
-    elif ord(char) == 127:
-        char = "<Backspace>"
-    elif ord(char) == 218:
-        char = "<Up>"
-    elif ord(char) == 217:
-        char = "<Down>"
-    elif ord(char) == 216:
-        char = "<Left>"
-    elif ord(char) == 215:
-        char = "<Right>"
 
-    with open(f"/home/rikka/Pi-Keylogger/log/{date}.txt", "a+") as f:
+    key_mappings = {
+        13: "\n",
+        127: "<Backspace>",
+        218: "<Up>",
+        217: "<Down>",
+        216: "<Left>",
+        215: "<Right>"
+    }
+
+    char = key_mappings.get(keycode, char)
+
+    log_path = f"/home/rikka/Pi-Keylogger/log/{date}.txt"
+    with open(log_path, "a+") as f:
         f.write(char)
+        # f.flush()  # Ensures immediate writing
 
 def arrow(char):
     """Convert arrow key escape sequences to keycodes."""
-    if ord(char) == 65:
-        return 218  # Up Arrow
-    elif ord(char) == 67:
-        return 215  # Right Arrow
-    elif ord(char) == 68:
-        return 216  # Left Arrow
-    elif ord(char) == 66:
-        return 217  # Down Arrow
-    else:
-        return 0
+    arrow_mappings = {
+        65: 218,  # Up Arrow
+        67: 215,  # Right Arrow
+        68: 216,  # Left Arrow
+        66: 217   # Down Arrow
+    }
+    return arrow_mappings.get(ord(char))
 
 PICO_IP = "192.168.36.30"  # Change if needed
 PORT = 12345

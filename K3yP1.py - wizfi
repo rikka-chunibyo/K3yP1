@@ -1,12 +1,13 @@
 import getch
 import socket
 import time
+import threading
 
 def log(char, date):
     """Log keypresses to a file and send them over TCP."""
     print(f"Logging and sending keycode {ord(char)}")
     send_key(char)
-    
+
     if ord(char) == 5:
         exit()
     elif ord(char) == 13:
@@ -41,33 +42,39 @@ def arrow(char):
 PICO_IP = "192.168.36.30"  # Change if needed
 PORT = 12345
 sock = None  # Declare socket globally
+lock = threading.Lock()  # Prevent concurrent socket access
 
 def connect():
     """Try to establish a TCP connection to the Pico."""
     global sock
     while True:
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(2)  # Prevents long blocking
-            sock.connect((PICO_IP, PORT))
-            print(f"Connected to {PICO_IP}:{PORT}")
-            return
-        except Exception as e:
-            print(f"Failed to connect: {e}, retrying in 2s...")
-            time.sleep(2)
-
-connect()  # Establish initial connection
+        with lock:
+            if sock is None:  # Only try if not connected
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(2)  # Prevents long blocking
+                    sock.connect((PICO_IP, PORT))
+                    print(f"Connected to {PICO_IP}:{PORT}")
+                except Exception as e:
+                    print(f"Failed to connect: {e}, retrying in 2s...")
+                    sock = None
+        time.sleep(2)
 
 def send_key(char):
     """Send a keypress to the Pico via TCP."""
     global sock
-    try:
-        sock.sendall(f"{ord(char)}\n".encode())  # Send keycode as raw data
-    except Exception as e:
-        print(f"Error sending key {ord(char)}: {e}")
-        sock.close()
-        sock = None
-        connect()  # Reconnect if broken
+    with lock:
+        if sock is None:
+            return  # If disconnected, just return (don't block input)
+        try:
+            sock.sendall(f"{ord(char)}\n".encode())  # Send keycode as raw data
+        except Exception as e:
+            print(f"Error sending key {ord(char)}: {e}")
+            sock.close()
+            sock = None  # Mark socket as disconnected
+
+# Start the reconnect thread
+threading.Thread(target=connect, daemon=True).start()
 
 date = time.strftime("%c").replace(" ", "-")
 print(date)
@@ -92,10 +99,12 @@ while True:
             log(char, date)
     except KeyboardInterrupt:
         print("Exiting...")
-        log(chr(3), date)
+        log(chr(5), date)
         break
     except Exception as e:
         print(f"Error: {e}")
         time.sleep(0.1)
 
-sock.close()
+with lock:
+    if sock:
+        sock.close()

